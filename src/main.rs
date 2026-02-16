@@ -1,18 +1,35 @@
+mod handlers;
+mod models;
+mod repositories;
+mod services;
+
 use axum::{
     routing::get,
     Router,
 };
-mod models;
-use models::user::User;
+use repositories::user_repository::InMemoryUserRepository;
+use services::user_service::UserService;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
-    // build our application with a single route
-    let app = Router::new()
-        .route("/get", get(User::get_user))
-        .route("/", get(|| async {"Hello World!"}));
+    // 1. Cria o repository
+    let repository = Arc::new(InMemoryUserRepository::new());
     
-    // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    // 2. Injeta o repository no service
+    let service = UserService::new(repository);
+    
+    // 3. Cria as rotas passando o service como State
+    let app = Router::new()
+        .route("/users/{id}", get(handlers::user_handler::get_user))
+        .with_state(service);
+    
+    // 4. Inicia o servidor
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
+    
+    println!("🚀 Servidor rodando em http://127.0.0.1:3000");
+    
     axum::serve(listener, app).await.unwrap();
 }
